@@ -2,7 +2,7 @@
 name = "writing-harness"
 version = "0.1.0"
 description = "CLI tool for enforcing continuity and style in serialized narratives"
-package-mode = false
+packages = [{include = "harness"}]
 
 [tool.poetry.dependencies]
 python = ">=3.11"
