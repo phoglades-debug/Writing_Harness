@@ -32,9 +32,9 @@ st.set_page_config(page_title="Writing Harness", page_icon="\u270E", layout="wid
 # ---------------------------------------------------------------------------
 def get_settings() -> Settings:
     """Build a Settings object from sidebar values + env."""
-    provider = st.session_state.get("provider", "anthropic")
+    provider = st.session_state.get("provider", "openai")
     api_key = st.session_state.get("api_key", "")
-    model = st.session_state.get("model_name", "claude-3-5-sonnet-20241022")
+    model = st.session_state.get("model_name", "gpt-4o")
     max_tokens = st.session_state.get("max_tokens", 4000)
 
     env_overrides: dict = {
@@ -89,7 +89,7 @@ def render_violations(violations: list[LintViolation], label: str):
 with st.sidebar:
     st.header("Settings")
 
-    st.selectbox("Provider", ["anthropic", "openai"], key="provider")
+    st.selectbox("Provider", ["openai", "anthropic"], key="provider")
 
     default_key = os.environ.get(
         "ANTHROPIC_API_KEY", os.environ.get("OPENAI_API_KEY", "")
@@ -97,9 +97,9 @@ with st.sidebar:
     st.text_input("API Key", value=default_key, type="password", key="api_key")
 
     default_model = (
-        "claude-3-5-sonnet-20241022"
-        if st.session_state.get("provider", "anthropic") == "anthropic"
-        else "gpt-4"
+        "gpt-4o"
+        if st.session_state.get("provider", "openai") == "openai"
+        else "claude-3-5-sonnet-20241022"
     )
     st.text_input("Model", value=default_model, key="model_name")
     st.number_input("Max tokens", min_value=256, max_value=16384, value=4000, key="max_tokens")
