@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 from click.testing import CliRunner
 from harness.cli import cli, create_workspace
+from harness.models import LintViolation
 
 
 # ── create_workspace ────────────────────────────────────────────────
@@ -117,3 +118,282 @@ class TestCLILint:
         result = runner.invoke(cli, ["lint", str(text_file)])
         assert result.exit_code == 0
         assert "violation" in result.output.lower() or "ERROR" in result.output or "Banned" in result.output
+
+
+# ── helpers ─────────────────────────────────────────────────────────
+def _setup_workspace(tmp_path):
+    """Create a workspace with all config files and a scene."""
+    ws = tmp_path / "workspace"
+    create_workspace(ws)
+    (ws / "outputs").mkdir(exist_ok=True)
+
+    scene_path = ws / "scenes" / "0001_scene.md"
+    scene_path.write_text("# Scene 0001 — Test\n\nHe walked into Novo-Ogaryovo.")
+    return ws, scene_path
+
+
+# ── CLI draft command ───────────────────────────────────────────────
+class TestCLIDraft:
+    @patch("harness.cli.draft_scene")
+    @patch("harness.cli.settings")
+    def test_draft_clean(self, mock_settings, mock_draft_scene, tmp_path):
+        ws, scene_path = _setup_workspace(tmp_path)
+        mock_settings.workspace_root = ws
+
+        mock_draft_scene.return_value = {
+            "draft_text": "He sat in Novo-Ogaryovo. Phoenix waited.",
+            "style_violations": [],
+            "continuity_violations": [],
+        }
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["draft", str(scene_path)])
+        assert result.exit_code == 0
+        assert "Draft" in result.output
+
+        # Verify output files created
+        assert (ws / "outputs" / "0001_scene_draft.md").exists()
+        assert (ws / "outputs" / "0001_style_lint.md").exists()
+        assert (ws / "outputs" / "0001_continuity_lint.md").exists()
+
+        # Verify draft content
+        draft_content = (ws / "outputs" / "0001_scene_draft.md").read_text()
+        assert "He sat in Novo-Ogaryovo" in draft_content
+
+        # Verify clean lint reports
+        style_report = (ws / "outputs" / "0001_style_lint.md").read_text()
+        assert "No style violations" in style_report
+        continuity_report = (ws / "outputs" / "0001_continuity_lint.md").read_text()
+        assert "No continuity violations" in continuity_report
+
+    @patch("harness.cli.draft_scene")
+    @patch("harness.cli.settings")
+    def test_draft_with_violations(self, mock_settings, mock_draft_scene, tmp_path):
+        ws, scene_path = _setup_workspace(tmp_path)
+        mock_settings.workspace_root = ws
+
+        mock_draft_scene.return_value = {
+            "draft_text": "Her breath hitched.",
+            "style_violations": [
+                LintViolation(
+                    category="style", severity="error",
+                    message="Banned: breath hitch",
+                    line_number=1, context="Her breath hitched.",
+                ),
+            ],
+            "continuity_violations": [
+                LintViolation(
+                    category="continuity", severity="warning",
+                    message="Character 'Phoenix' supposed present but not mentioned",
+                    context="Check if character should still be in scene",
+                ),
+            ],
+        }
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["draft", str(scene_path)])
+        assert result.exit_code == 0
+        assert "1 style" in result.output
+        assert "1 continuity" in result.output
+        assert "revise" in result.output.lower()
+
+        # Verify violation reports have content
+        style_report = (ws / "outputs" / "0001_style_lint.md").read_text()
+        assert "breath hitch" in style_report
+        continuity_report = (ws / "outputs" / "0001_continuity_lint.md").read_text()
+        assert "Phoenix" in continuity_report
+
+    @patch("harness.cli.draft_scene")
+    @patch("harness.cli.settings")
+    def test_draft_error_handling(self, mock_settings, mock_draft_scene, tmp_path):
+        ws, scene_path = _setup_workspace(tmp_path)
+        mock_settings.workspace_root = ws
+        mock_draft_scene.side_effect = RuntimeError("API connection failed")
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["draft", str(scene_path)])
+        assert result.exit_code == 1
+
+
+# ── CLI revise command ──────────────────────────────────────────────
+class TestCLIRevise:
+    @patch("harness.cli.revise_draft")
+    @patch("harness.cli.settings")
+    def test_revise_clean(self, mock_settings, mock_revise, tmp_path):
+        ws, _ = _setup_workspace(tmp_path)
+        mock_settings.workspace_root = ws
+
+        draft_path = ws / "outputs" / "0001_scene_draft.md"
+        draft_path.write_text("He sat in the salon, waiting.")
+
+        mock_revise.return_value = {
+            "revised_text": "He sat in the salon. He waited.",
+            "style_violations": [],
+            "continuity_violations": [],
+        }
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["revise", str(draft_path)])
+        assert result.exit_code == 0
+        assert "Revised" in result.output
+
+        # Verify output files
+        assert (ws / "outputs" / "0001_scene_out.md").exists()
+        assert (ws / "outputs" / "0001_revise_lint.md").exists()
+
+        revised = (ws / "outputs" / "0001_scene_out.md").read_text()
+        assert "He sat in the salon" in revised
+
+        report = (ws / "outputs" / "0001_revise_lint.md").read_text()
+        assert "None." in report
+
+    @patch("harness.cli.revise_draft")
+    @patch("harness.cli.settings")
+    def test_revise_with_remaining_violations(self, mock_settings, mock_revise, tmp_path):
+        ws, _ = _setup_workspace(tmp_path)
+        mock_settings.workspace_root = ws
+
+        draft_path = ws / "outputs" / "0001_scene_draft.md"
+        draft_path.write_text("Her breath hitched.")
+
+        mock_revise.return_value = {
+            "revised_text": "She paused. You could see the tension.",
+            "style_violations": [
+                LintViolation(
+                    category="style", severity="error",
+                    message="Second-person pronoun 'you' in narration",
+                    line_number=1, context="You could see the tension.",
+                ),
+            ],
+            "continuity_violations": [],
+        }
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["revise", str(draft_path)])
+        assert result.exit_code == 0
+        assert "1 style" in result.output
+
+        report = (ws / "outputs" / "0001_revise_lint.md").read_text()
+        assert "you" in report.lower()
+
+    @patch("harness.cli.revise_draft")
+    @patch("harness.cli.settings")
+    def test_revise_with_continuity_violations(self, mock_settings, mock_revise, tmp_path):
+        ws, _ = _setup_workspace(tmp_path)
+        mock_settings.workspace_root = ws
+
+        draft_path = ws / "outputs" / "0001_scene_draft.md"
+        draft_path.write_text("She stood alone.")
+
+        mock_revise.return_value = {
+            "revised_text": "She stood alone in the room.",
+            "style_violations": [],
+            "continuity_violations": [
+                LintViolation(
+                    category="continuity", severity="warning",
+                    message="Character 'Phoenix' supposed present but not mentioned",
+                    context="Check if character should still be in scene",
+                ),
+            ],
+        }
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["revise", str(draft_path)])
+        assert result.exit_code == 0
+        assert "1 continuity" in result.output
+
+        report = (ws / "outputs" / "0001_revise_lint.md").read_text()
+        assert "Phoenix" in report
+
+    @patch("harness.cli.revise_draft")
+    @patch("harness.cli.settings")
+    def test_revise_strict_fails_on_violations(self, mock_settings, mock_revise, tmp_path):
+        ws, _ = _setup_workspace(tmp_path)
+        mock_settings.workspace_root = ws
+
+        draft_path = ws / "outputs" / "0001_scene_draft.md"
+        draft_path.write_text("Draft text.")
+
+        mock_revise.return_value = {
+            "revised_text": "Revised but still bad.",
+            "style_violations": [
+                LintViolation(
+                    category="style", severity="error",
+                    message="Some violation",
+                    line_number=1, context="bad text",
+                ),
+            ],
+            "continuity_violations": [],
+        }
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["revise", "--strict", str(draft_path)])
+        assert result.exit_code == 1
+        assert "Strict mode" in result.output
+
+    @patch("harness.cli.revise_draft")
+    @patch("harness.cli.settings")
+    def test_revise_strict_passes_when_clean(self, mock_settings, mock_revise, tmp_path):
+        ws, _ = _setup_workspace(tmp_path)
+        mock_settings.workspace_root = ws
+
+        draft_path = ws / "outputs" / "0001_scene_draft.md"
+        draft_path.write_text("Draft text.")
+
+        mock_revise.return_value = {
+            "revised_text": "Clean revised text.",
+            "style_violations": [],
+            "continuity_violations": [],
+        }
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["revise", "--strict", str(draft_path)])
+        assert result.exit_code == 0
+
+    @patch("harness.cli.revise_draft")
+    @patch("harness.cli.settings")
+    def test_revise_error_handling(self, mock_settings, mock_revise, tmp_path):
+        ws, _ = _setup_workspace(tmp_path)
+        mock_settings.workspace_root = ws
+
+        draft_path = ws / "outputs" / "0001_scene_draft.md"
+        draft_path.write_text("Draft text.")
+        mock_revise.side_effect = RuntimeError("API failed")
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["revise", str(draft_path)])
+        assert result.exit_code == 1
+
+
+# ── CLI init error handling ─────────────────────────────────────────
+class TestCLIInitError:
+    @patch("harness.cli.create_workspace")
+    @patch("harness.cli.settings")
+    def test_init_error(self, mock_settings, mock_create, tmp_path):
+        mock_settings.workspace_root = tmp_path / "ws"
+        mock_create.side_effect = PermissionError("Cannot create directory")
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["init"])
+        assert result.exit_code == 1
+
+
+# ── CLI new-scene error handling ────────────────────────────────────
+class TestCLINewSceneError:
+    @patch("harness.cli.settings")
+    def test_new_scene_no_workspace(self, mock_settings, tmp_path):
+        # Point to nonexistent workspace — load_continuity_ledger will raise
+        mock_settings.workspace_root = tmp_path / "nonexistent"
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["new-scene", "--title", "Test"])
+        assert result.exit_code == 1
+
+
+# ── main() entry point ─────────────────────────────────────────────
+class TestMain:
+    @patch("harness.cli.cli")
+    def test_main_calls_cli(self, mock_cli):
+        from harness.cli import main
+        main()
+        mock_cli.assert_called_once()
