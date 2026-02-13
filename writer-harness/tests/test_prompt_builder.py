@@ -120,14 +120,7 @@ class TestBuildDraftPrompt:
 
 # ── build_revise_prompt ─────────────────────────────────────────────
 class TestBuildRevisePrompt:
-    def test_violations_stored_in_sections(self):
-        """VIOLATIONS and DRAFT_TEXT are added to builder.sections but
-        build() only renders its predefined order list, so they don't
-        appear in the final prompt string. Verify they're at least
-        stored on the builder internally by checking sections dict."""
-        from harness.prompt_builder import PromptBuilder
-        # We verify the structure is set correctly, even though the
-        # current build() doesn't include VIOLATIONS/DRAFT_TEXT in output.
+    def test_contains_violations(self):
         prompt = build_revise_prompt(
             "draft text here",
             ["Banned: breath hitch"],
@@ -135,10 +128,21 @@ class TestBuildRevisePrompt:
             _ledger(),
             _rules(),
         )
-        # The prompt still contains core sections
-        assert "SYSTEM" in prompt
-        assert "CONTINUITY_LEDGER" in prompt
-        assert "TASK" in prompt
+        assert "breath hitch" in prompt
+        assert "Location missing" in prompt
+
+    def test_no_violations(self):
+        prompt = build_revise_prompt(
+            "clean draft", [], [], _ledger(), _rules(),
+        )
+        assert "No violations found" in prompt
+
+    def test_contains_draft_text(self):
+        prompt = build_revise_prompt(
+            "She looked out the window.",
+            [], [], _ledger(), _rules(),
+        )
+        assert "She looked out the window." in prompt
 
     def test_system_mentions_revision(self):
         prompt = build_revise_prompt("draft", [], [], _ledger(), _rules())
@@ -151,3 +155,16 @@ class TestBuildRevisePrompt:
     def test_task_mentions_anti_meta(self):
         prompt = build_revise_prompt("draft", [], [], _ledger(), _rules())
         assert "ANTI-META" in prompt
+
+    def test_section_ordering(self):
+        prompt = build_revise_prompt(
+            "draft text",
+            ["some violation"],
+            [],
+            _ledger(),
+            _rules(),
+        )
+        # VIOLATIONS should appear before TASK
+        assert prompt.index("VIOLATIONS") < prompt.index("TASK")
+        # DRAFT_TEXT should appear before TASK
+        assert prompt.index("DRAFT_TEXT") < prompt.index("TASK")

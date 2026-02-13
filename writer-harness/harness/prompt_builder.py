@@ -83,6 +83,8 @@ class PromptBuilder:
             "SYSTEM",
             "CONTINUITY_LEDGER",
             "STYLE_RULES",
+            "VIOLATIONS",
+            "DRAFT_TEXT",
             "LORE",
             "SEED",
             "TASK",

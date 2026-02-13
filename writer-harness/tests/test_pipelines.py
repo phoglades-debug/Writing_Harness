@@ -3,18 +3,18 @@ import pytest
 import yaml
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from pydantic import ValidationError
 from harness.pipelines.draft import load_continuity_ledger, extract_seed_text
 
 
 # ── load_continuity_ledger ──────────────────────────────────────────
 class TestLoadContinuityLedger:
-    def test_missing_file_raises(self, tmp_path):
-        # The fallback passes only location_current and who_present,
-        # but ContinuityLedger requires time_of_day, date_or_day_count,
-        # and elapsed_time_since_last_scene — so this raises ValidationError.
-        with pytest.raises(ValidationError):
-            load_continuity_ledger(tmp_path / "missing.yaml")
+    def test_missing_file_returns_defaults(self, tmp_path):
+        ledger = load_continuity_ledger(tmp_path / "missing.yaml")
+        assert ledger.location_current == "Unknown"
+        assert ledger.time_of_day == "unknown"
+        assert ledger.date_or_day_count == "unknown"
+        assert ledger.elapsed_time_since_last_scene == "unknown"
+        assert ledger.who_present == []
 
     def test_valid_file(self, tmp_path):
         data = {
@@ -31,12 +31,12 @@ class TestLoadContinuityLedger:
         assert ledger.location_current == "Salon"
         assert "Phoenix" in ledger.who_present
 
-    def test_empty_file_raises(self, tmp_path):
-        # Empty YAML yields None → {} → missing required fields
+    def test_empty_file_returns_defaults(self, tmp_path):
         state_path = tmp_path / "state.yaml"
         state_path.write_text("")
-        with pytest.raises(ValidationError):
-            load_continuity_ledger(state_path)
+        ledger = load_continuity_ledger(state_path)
+        assert ledger.location_current == "Unknown"
+        assert ledger.who_present == []
 
 
 # ── extract_seed_text ───────────────────────────────────────────────

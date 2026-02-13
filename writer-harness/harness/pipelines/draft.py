@@ -14,10 +14,25 @@ from harness.lint.continuity import lint_continuity
 def load_continuity_ledger(state_path: Path) -> ContinuityLedger:
     """Load ledger from YAML."""
     if not state_path.exists():
-        return ContinuityLedger(location_current="Unknown", who_present=[])
+        return ContinuityLedger(
+            location_current="Unknown",
+            time_of_day="unknown",
+            date_or_day_count="unknown",
+            elapsed_time_since_last_scene="unknown",
+            who_present=[],
+        )
 
     with open(state_path, "r") as f:
         data = yaml.safe_load(f) or {}
+
+    if not data:
+        return ContinuityLedger(
+            location_current="Unknown",
+            time_of_day="unknown",
+            date_or_day_count="unknown",
+            elapsed_time_since_last_scene="unknown",
+            who_present=[],
+        )
 
     return ContinuityLedger(**data)
 
