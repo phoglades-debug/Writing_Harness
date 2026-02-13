@@ -146,7 +146,7 @@ with tab_write:
             f"-->\n\n"
             f"# Scene {next_num:04d} — {title}\n\n"
         )
-        scene_path.write_text(header)
+        scene_path.write_text(header, encoding="utf-8")
         st.success(f"Created `{scene_path.name}`")
         st.rerun()
 
@@ -154,10 +154,10 @@ with tab_write:
     scenes = list_scenes()
     if scenes:
         chosen = st.selectbox("Edit scene", scenes, format_func=lambda p: p.name)
-        content = chosen.read_text()
+        content = chosen.read_text(encoding="utf-8", errors="replace")
         edited = st.text_area("Scene content", value=content, height=400, key=f"edit_{chosen.name}")
         if st.button("Save", key=f"save_{chosen.name}"):
-            chosen.write_text(edited)
+            chosen.write_text(edited, encoding="utf-8")
             st.success("Saved.")
 
 # ---- Draft ---------------------------------------------------------------
@@ -191,7 +191,7 @@ with tab_draft:
                         output_dir.mkdir(exist_ok=True)
 
                         draft_path = output_dir / f"{scene_num}_scene_draft.md"
-                        draft_path.write_text(result["draft_text"])
+                        draft_path.write_text(result["draft_text"], encoding="utf-8")
 
                         st.success(f"Draft saved to `{draft_path.name}`")
                         st.markdown("### Draft")
@@ -218,7 +218,7 @@ with tab_revise:
 
         # Show current draft
         with st.expander("Preview draft"):
-            st.markdown(draft_choice.read_text())
+            st.markdown(draft_choice.read_text(encoding="utf-8", errors="replace"))
 
         if st.button("Revise draft"):
             if not st.session_state.get("api_key"):
@@ -226,14 +226,14 @@ with tab_revise:
             else:
                 with st.spinner("Revising (calling LLM)..."):
                     try:
-                        draft_text = draft_choice.read_text()
+                        draft_text = draft_choice.read_text(encoding="utf-8", errors="replace")
                         result = revise_draft(draft_text, WORKSPACE_ROOT)
 
                         scene_num = draft_choice.stem.split("_")[0]
                         output_dir = WORKSPACE_ROOT / "outputs"
 
                         final_path = output_dir / f"{scene_num}_scene_out.md"
-                        final_path.write_text(result["revised_text"])
+                        final_path.write_text(result["revised_text"], encoding="utf-8")
 
                         st.success(f"Revised draft saved to `{final_path.name}`")
                         st.markdown("### Revised text")
@@ -264,7 +264,7 @@ with tab_lint:
         all_files = list_scenes() + list_outputs()
         if all_files:
             lint_file = st.selectbox("File", all_files, format_func=lambda p: p.name, key="lint_file")
-            text_to_lint = lint_file.read_text()
+            text_to_lint = lint_file.read_text(encoding="utf-8", errors="replace")
             with st.expander("File contents"):
                 st.text(text_to_lint)
         else:
@@ -302,13 +302,13 @@ with tab_config:
     cfg_path = config_files[cfg_choice]
 
     if cfg_path.exists():
-        raw = cfg_path.read_text()
+        raw = cfg_path.read_text(encoding="utf-8", errors="replace")
         edited_cfg = st.text_area("YAML content", value=raw, height=500, key=f"cfg_{cfg_choice}")
         if st.button("Save config", key="save_cfg"):
             # Validate YAML before saving
             try:
                 yaml.safe_load(edited_cfg)
-                cfg_path.write_text(edited_cfg)
+                cfg_path.write_text(edited_cfg, encoding="utf-8")
                 st.success(f"Saved `{cfg_choice}`.")
             except yaml.YAMLError as e:
                 st.error(f"Invalid YAML: {e}")
@@ -325,4 +325,4 @@ with tab_outputs:
     else:
         out_choice = st.selectbox("Output file", outputs, format_func=lambda p: p.name, key="out_select")
         st.markdown(f"**{out_choice.name}**")
-        st.markdown(out_choice.read_text())
+        st.markdown(out_choice.read_text(encoding="utf-8", errors="replace"))
