@@ -35,3 +35,13 @@ dev = [
     "black>=23.0",
     "ruff>=0.1",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["harness"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
