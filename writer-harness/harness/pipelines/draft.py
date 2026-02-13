@@ -1,7 +1,7 @@
 from pathlib import Path
 import yaml
 
-from harness.config import settings
+import harness.config as _cfg
 from harness.models import ContinuityLedger
 from harness.prompt_builder import build_draft_prompt
 from harness.providers import get_provider
@@ -52,7 +52,7 @@ def extract_seed_text(scene_content: str) -> str:
 
 def draft_scene(
     scene_path: Path,
-    workspace_root: Path = settings.workspace_root,
+    workspace_root: Path = _cfg.settings.workspace_root,
     lore_k: int = 8,
     use_lore: bool = True,
 ) -> dict:
@@ -79,13 +79,13 @@ def draft_scene(
 
     prompt = build_draft_prompt(ledger, rules, seed_text, lore_snippets)
 
-    settings.validate_provider()
+    _cfg.settings.validate_provider()
     provider = get_provider(
-        settings.provider,
-        settings.anthropic_api_key or settings.openai_api_key,
-        settings.model_name,
+        _cfg.settings.provider,
+        _cfg.settings.anthropic_api_key or _cfg.settings.openai_api_key,
+        _cfg.settings.model_name,
     )
-    draft_text = provider.generate(prompt, max_tokens=settings.max_tokens)
+    draft_text = provider.generate(prompt, max_tokens=_cfg.settings.max_tokens)
 
     style_violations = lint_style(draft_text, banned, scene_location=ledger.location_current)
     continuity_violations = lint_continuity(draft_text, ledger)

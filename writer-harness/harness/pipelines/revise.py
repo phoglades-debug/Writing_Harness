@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from harness.config import settings
+import harness.config as _cfg
 from harness.prompt_builder import build_revise_prompt
 from harness.providers import get_provider
 from harness.lint.rules import load_style_rules, load_banned_phrases
@@ -11,7 +11,7 @@ from harness.pipelines.draft import load_continuity_ledger
 
 def revise_draft(
     draft_text: str,
-    workspace_root: Path = settings.workspace_root,
+    workspace_root: Path = _cfg.settings.workspace_root,
 ) -> dict:
     """Revise a draft to fix violations."""
     state_path = workspace_root / "state.yaml"
@@ -31,13 +31,13 @@ def revise_draft(
 
     prompt = build_revise_prompt(draft_text, style_msgs, continuity_msgs, ledger, rules)
 
-    settings.validate_provider()
+    _cfg.settings.validate_provider()
     provider = get_provider(
-        settings.provider,
-        settings.anthropic_api_key or settings.openai_api_key,
-        settings.model_name,
+        _cfg.settings.provider,
+        _cfg.settings.anthropic_api_key or _cfg.settings.openai_api_key,
+        _cfg.settings.model_name,
     )
-    revised_text = provider.generate(prompt, max_tokens=settings.max_tokens)
+    revised_text = provider.generate(prompt, max_tokens=_cfg.settings.max_tokens)
 
     style_violations_after = lint_style(revised_text, banned, scene_location=ledger.location_current)
     continuity_violations_after = lint_continuity(revised_text, ledger)
