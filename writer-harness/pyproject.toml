@@ -45,3 +45,10 @@ source = ["harness"]
 [tool.coverage.report]
 show_missing = true
 skip_empty = true
+
+[
+tool.poetry
+]
+name = "writing-harness"
+version = "0.1.0"
+package-mode = false 
