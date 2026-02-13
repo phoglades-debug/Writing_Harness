@@ -6,10 +6,10 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """Global settings from .env and environment."""
 
-    provider: str = "anthropic"
+    provider: str = "openai"
     anthropic_api_key: str = ""
     openai_api_key: str = ""
-    model_name: str = "claude-3-5-sonnet-20241022"
+    model_name: str = "gpt-4o"
     max_tokens: int = 4000
     workspace_root: Path = Path("./workspace")
 
