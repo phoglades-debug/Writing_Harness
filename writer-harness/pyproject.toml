@@ -25,6 +25,9 @@ dependencies = [
 [project.scripts]
 harness = "harness.cli:main"
 
+[tool.setuptools.packages.find]
+include = ["harness*"]
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
